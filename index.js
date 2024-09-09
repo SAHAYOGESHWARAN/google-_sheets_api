@@ -89,6 +89,7 @@ app.get('/sheets', async (req, res) => {
             range: 'Sheet1!A1:D10',
         });
 
+        console.log('Data fetched from Google Sheets:', response.data.values); // Debugging step
         res.json(response.data.values);
     } catch (error) {
         console.error('Error fetching data from Google Sheets:', error.response ? error.response.data : error.message);
@@ -96,7 +97,6 @@ app.get('/sheets', async (req, res) => {
     }
 });
 
-// Route to add data to a sheet
 app.post('/sheets/add', async (req, res) => {
     if (!req.session.tokens) {
         return res.redirect('/');
@@ -126,6 +126,7 @@ app.post('/sheets/add', async (req, res) => {
         res.status(500).send('Error adding data to Google Sheets');
     }
 });
+
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
