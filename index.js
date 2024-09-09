@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// OAuth2 client setup (Read credentials from a file)
+// OAuth2 client setup
 const credentialsPath = path.join(__dirname, 'credentials.json');
 let credentials;
 
@@ -21,14 +21,25 @@ try {
     process.exit(1);
 }
 
-const { client_secret, client_id, redirect_uris } = credentials.installed;
+const { installed } = credentials;
+if (!installed) {
+    console.error('Invalid credentials format: Missing "installed" object');
+    process.exit(1);
+}
+
+const { client_secret, client_id, redirect_uris } = installed;
+if (!client_secret || !client_id || !redirect_uris) {
+    console.error('Invalid credentials format: Missing required fields');
+    process.exit(1);
+}
+
 const oAuth2Client = new google.auth.OAuth2(
     client_id,
     client_secret,
     redirect_uris[0]
 );
 
-// Session middleware for storing tokens
+// Session middleware
 app.use(session({
     secret: 'YOUR_SESSION_SECRET',
     resave: false,
@@ -37,12 +48,11 @@ app.use(session({
 
 app.use(express.json()); // To parse JSON request bodies
 
-// Step 1: Display the Google OAuth authorization link
+// Routes
 app.get('/', (req, res) => {
     res.send('<a href="/auth">Authorize with Google</a>');
 });
 
-// Step 2: Redirect to Google OAuth page to get permission
 app.get('/auth', (req, res) => {
     const url = oAuth2Client.generateAuthUrl({
         access_type: 'offline',
@@ -51,73 +61,73 @@ app.get('/auth', (req, res) => {
     res.redirect(url);
 });
 
-// Step 3: Handle OAuth2 callback, exchange the code for tokens, and store them in session
 app.get('/oauth2callback', async (req, res) => {
     const code = req.query.code;
     try {
-        const { tokens } = await oAuth2Client.getToken(code);  // Get OAuth tokens
+        const { tokens } = await oAuth2Client.getToken(code);
         oAuth2Client.setCredentials(tokens);
-        req.session.tokens = tokens;  // Store tokens in session
+        req.session.tokens = tokens;
         res.send('Authentication successful! You can now access Google Sheets.');
     } catch (error) {
-        console.error('Error exchanging code for tokens:', error);
+        console.error('Error exchanging code for tokens:', error.response ? error.response.data : error.message);
         res.status(500).send('Error exchanging code for tokens');
     }
 });
 
-// Step 4: Read data from Google Sheets
 app.get('/sheets', async (req, res) => {
     if (!req.session.tokens) {
-        return res.redirect('/auth');  // Redirect to auth if not authenticated
+        return res.redirect('/');
     }
 
-    oAuth2Client.setCredentials(req.session.tokens);  // Set credentials from session
+    oAuth2Client.setCredentials(req.session.tokens);
 
     const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
-    const spreadsheetId = 'YOUR_SPREADSHEET_ID';  // Replace with your spreadsheet ID
 
     try {
         const response = await sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range: 'Sheet1!A1:D10',  // Specify the range in your Google Sheet
+            spreadsheetId: '17Bq5aJU_nKOUq1epx2KDWX2vmoZHHjpj7JlrxDYXmo0',
+            range: 'Sheet1!A1:D10',
         });
 
-        res.json(response.data.values);  // Return the fetched data
+        console.log('Data fetched from Google Sheets:', response.data.values); // Debugging step
+        res.json(response.data.values);
     } catch (error) {
-        console.error('Error fetching data from Google Sheets:', error);
+        console.error('Error fetching data from Google Sheets:', error.response ? error.response.data : error.message);
         res.status(500).send('Error fetching data from Google Sheets');
     }
 });
 
-// Step 5: Add data to Google Sheets
 app.post('/sheets/add', async (req, res) => {
     if (!req.session.tokens) {
-        return res.redirect('/auth');  // Redirect to auth if not authenticated
+        return res.redirect('/');
     }
 
-    oAuth2Client.setCredentials(req.session.tokens);  // Set credentials from session
+    oAuth2Client.setCredentials(req.session.tokens);
 
     const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
-    const { range, values } = req.body;  // Get the range and values from the request body
-    const spreadsheetId = 'YOUR_SPREADSHEET_ID';  // Replace with your spreadsheet ID
+    const { range, values } = req.body;
+
+    console.log('Adding data to sheet:', { range, values }); // Debugging step
 
     try {
         const response = await sheets.spreadsheets.values.append({
-            spreadsheetId,
-            range,
-            valueInputOption: 'RAW',  // 'RAW' or 'USER_ENTERED'
-            requestBody: { values },  // The data to add
+            spreadsheetId: '17Bq5aJU_nKOUq1epx2KDWX2vmoZHHjpj7JlrxDYXmo0',
+            range: range,
+            valueInputOption: 'RAW', // 'RAW' or 'USER_ENTERED'
+            requestBody: {
+                values: values,
+            },
         });
 
-        console.log('Data added successfully:', response.data);  // Log response for debugging
+        console.log('Data added successfully:', response.data); // Debugging step
         res.json(response.data);
     } catch (error) {
-        console.error('Error adding data to Google Sheets:', error);
+        console.error('Error adding data to Google Sheets:', error.response ? error.response.data : error.message);
         res.status(500).send('Error adding data to Google Sheets');
     }
 });
 
-// Server setup
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
