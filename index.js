@@ -41,7 +41,7 @@ const oAuth2Client = new google.auth.OAuth2(
 
 // Session middleware
 app.use(session({
-    secret: 'YOUR_SESSION_SECRET',
+    secret: '123345',
     resave: false,
     saveUninitialized: true
 }));
@@ -84,12 +84,13 @@ app.get('/sheets', async (req, res) => {
 
     try {
         const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: 'YOUR_SPREADSHEET_ID',
-            range: 'Sheet1!A1:D10',
+            spreadsheetId: '12KLryfOauMIlzQXEv31gyD9QUymV9hrwibumotqs_Jc/edit?gid=0#gid=0',
+            range: 'Sheet1!A1:D6',
         });
 
         res.json(response.data.values);
     } catch (error) {
+        console.error('Error fetching data from Google Sheets:', error);
         res.status(500).send('Error fetching data from Google Sheets');
     }
 });
@@ -105,9 +106,11 @@ app.post('/sheets/add', async (req, res) => {
     const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
     const { range, values } = req.body;
 
+    console.log('Adding data to sheet:', { range, values }); // Debugging step
+
     try {
         const response = await sheets.spreadsheets.values.append({
-            spreadsheetId: 'YOUR_SPREADSHEET_ID',
+            spreadsheetId: '12KLryfOauMIlzQXEv31gyD9QUymV9hrwibumotqs_Jc/edit?gid=0#gid=0',
             range: range,
             valueInputOption: 'RAW', // 'RAW' or 'USER_ENTERED'
             requestBody: {
@@ -115,8 +118,10 @@ app.post('/sheets/add', async (req, res) => {
             },
         });
 
+        console.log('Data added successfully:', response.data); // Debugging step
         res.json(response.data);
     } catch (error) {
+        console.error('Error adding data to Google Sheets:', error);
         res.status(500).send('Error adding data to Google Sheets');
     }
 });
