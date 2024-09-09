@@ -41,7 +41,7 @@ const oAuth2Client = new google.auth.OAuth2(
 
 // Session middleware
 app.use(session({
-    secret: 'YOUR_SESSION_SECRET',
+    secret: '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',
     resave: false,
     saveUninitialized: true
 }));
@@ -113,13 +113,13 @@ app.post('/sheets/add', async (req, res) => {
         const response = await sheets.spreadsheets.values.append({
             spreadsheetId: '17Bq5aJU_nKOUq1epx2KDWX2vmoZHHjpj7JlrxDYXmo0',
             range: range,
-            valueInputOption: 'RAW', // 'RAW' or 'USER_ENTERED'
+            valueInputOption: 'RAW', 
             requestBody: {
                 values: values,
             },
         });
 
-        console.log('Data added successfully:', response.data); // Debugging step
+        console.log('Data added successfully:', response.data);
         res.json(response.data);
     } catch (error) {
         console.error('Error adding data to Google Sheets:', error.response ? error.response.data : error.message);
