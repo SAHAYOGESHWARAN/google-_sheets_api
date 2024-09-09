@@ -47,7 +47,7 @@ const oAuth2Client = new google.auth.OAuth2(
 
 // Session middleware
 app.use(session({
-    secret: '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', 
+    secret: 'your-session-secret', 
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false } 
@@ -64,7 +64,6 @@ app.get('/auth', (req, res) => {
     const url = oAuth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: ['https://www.googleapis.com/auth/spreadsheets']
-
     });
     res.redirect(url);
 });
@@ -99,14 +98,19 @@ app.get('/sheets', async (req, res) => {
     try {
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: spreadsheetId,
-            range: 'Sheet1!A1:D10',
+            range: 'Sheet1!A1:A2'
         });
 
-        console.log('Data fetched from Google Sheets:', response.data.values);
-        res.json(response.data.values);
+        if (response.data.values) {
+            console.log('Data fetched from Google Sheets:', response.data.values);
+            res.json(response.data.values);
+        } else {
+            console.log('No data found in the specified range.');
+            res.status(404).send('No data found in the specified range.');
+        }
     } catch (error) {
         console.error('Error fetching data from Google Sheets:', error.response ? error.response.data : error.message);
-        res.status(500).send('Error fetching data from Google Sheets');
+        res.status(500).send(`Error fetching data from Google Sheets: ${error.response ? error.response.data : error.message}`);
     }
 });
 
@@ -144,7 +148,6 @@ app.post('/sheets/add', async (req, res) => {
         res.status(500).send('Error adding data to Google Sheets');
     }
 });
-
 
 // Start server
 app.listen(PORT, () => {
