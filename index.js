@@ -10,13 +10,12 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Load credentials from file
+// OAuth2 client setup
 const credentialsPath = path.join(__dirname, 'credentials.json');
 let credentials;
 
 try {
     credentials = JSON.parse(fs.readFileSync(credentialsPath));
-    console.log('Loaded credentials:', credentials); // Debugging step
 } catch (error) {
     console.error('Error reading credentials file:', error);
     process.exit(1);
@@ -34,7 +33,6 @@ if (!client_secret || !client_id || !redirect_uris) {
     process.exit(1);
 }
 
-// OAuth2 client setup
 const oAuth2Client = new google.auth.OAuth2(
     client_id,
     client_secret,
@@ -48,6 +46,8 @@ app.use(session({
     saveUninitialized: true
 }));
 
+app.use(express.json()); // To parse JSON request bodies
+
 // Routes
 app.get('/', (req, res) => {
     res.send('<a href="/auth">Authorize with Google</a>');
@@ -56,7 +56,7 @@ app.get('/', (req, res) => {
 app.get('/auth', (req, res) => {
     const url = oAuth2Client.generateAuthUrl({
         access_type: 'offline',
-        scope: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+        scope: ['https://www.googleapis.com/auth/spreadsheets']
     });
     res.redirect(url);
 });
@@ -91,6 +91,33 @@ app.get('/sheets', async (req, res) => {
         res.json(response.data.values);
     } catch (error) {
         res.status(500).send('Error fetching data from Google Sheets');
+    }
+});
+
+// Route to add data to a sheet
+app.post('/sheets/add', async (req, res) => {
+    if (!req.session.tokens) {
+        return res.redirect('/');
+    }
+
+    oAuth2Client.setCredentials(req.session.tokens);
+
+    const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
+    const { range, values } = req.body;
+
+    try {
+        const response = await sheets.spreadsheets.values.append({
+            spreadsheetId: 'YOUR_SPREADSHEET_ID',
+            range: range,
+            valueInputOption: 'RAW', // 'RAW' or 'USER_ENTERED'
+            requestBody: {
+                values: values,
+            },
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).send('Error adding data to Google Sheets');
     }
 });
 
