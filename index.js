@@ -10,21 +10,36 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// OAuth2 client setup
-const oAuth2Client = new google.auth.OAuth2(
-    process.env.CLIENT_ID,
-    process.env.CLIENT_SECRET,
-    process.env.REDIRECT_URI
-);
-
 // Load credentials from file
 const credentialsPath = path.join(__dirname, 'credentials.json');
-const { client_secret, client_id, redirect_uris } = JSON.parse(fs.readFileSync(credentialsPath)).installed;
-oAuth2Client.setCredentials({
+let credentials;
+
+try {
+    credentials = JSON.parse(fs.readFileSync(credentialsPath));
+    console.log('Loaded credentials:', credentials); // Debugging step
+} catch (error) {
+    console.error('Error reading credentials file:', error);
+    process.exit(1);
+}
+
+const { installed } = credentials;
+if (!installed) {
+    console.error('Invalid credentials format: Missing "installed" object');
+    process.exit(1);
+}
+
+const { client_secret, client_id, redirect_uris } = installed;
+if (!client_secret || !client_id || !redirect_uris) {
+    console.error('Invalid credentials format: Missing required fields');
+    process.exit(1);
+}
+
+// OAuth2 client setup
+const oAuth2Client = new google.auth.OAuth2(
     client_id,
     client_secret,
-    redirect_uri: redirect_uris[0],
-});
+    redirect_uris[0]
+);
 
 // Session middleware
 app.use(session({
@@ -48,10 +63,14 @@ app.get('/auth', (req, res) => {
 
 app.get('/oauth2callback', async (req, res) => {
     const code = req.query.code;
-    const { tokens } = await oAuth2Client.getToken(code);
-    oAuth2Client.setCredentials(tokens);
-    req.session.tokens = tokens;
-    res.send('Authentication successful! You can now access Google Sheets.');
+    try {
+        const { tokens } = await oAuth2Client.getToken(code);
+        oAuth2Client.setCredentials(tokens);
+        req.session.tokens = tokens;
+        res.send('Authentication successful! You can now access Google Sheets.');
+    } catch (error) {
+        res.status(500).send('Error exchanging code for tokens');
+    }
 });
 
 app.get('/sheets', async (req, res) => {
