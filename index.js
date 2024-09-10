@@ -40,9 +40,10 @@ app.use(session({
     secret: 'your-session-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false } 
+    cookie: { secure: false }
 }));
 
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // Save tokens to a file
@@ -92,54 +93,48 @@ app.get('/oauth2callback', async (req, res) => {
         oAuth2Client.setCredentials(tokens);
         req.session.tokens = tokens;
         saveTokens(tokens);  // Save tokens to a file for reuse
-        res.send('Authentication successful! You can now access Google Sheets.');
+        res.redirect('/enter-details');  // Redirect to the form page
     } catch (error) {
         console.error('Error exchanging code for tokens:', error.response ? error.response.data : error.message);
         res.status(500).send('Error exchanging code for tokens');
     }
 });
 
-// View data from Google Sheets
-app.get('/sheets', async (req, res) => {
+// Route to show the form for entering details
+app.get('/enter-details', (req, res) => {
     if (!oAuth2Client.credentials) {
         return res.redirect('/');
     }
 
-    const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
-    const spreadsheetId = process.env.SPREADSHEET_ID;
-
-    try {
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: spreadsheetId,
-            range: 'Sheet1!A1:A2'
-        });
-
-        if (response.data.values) {
-            console.log('Data fetched from Google Sheets:', response.data.values);
-            res.json(response.data.values);
-        } else {
-            console.log('No data found in the specified range.');
-            res.status(404).send('No data found in the specified range.');
-        }
-    } catch (error) {
-        console.error('Error fetching data from Google Sheets:', error.response ? error.response.data : error.message);
-        res.status(500).send(`Error fetching data from Google Sheets: ${error.response ? error.response.data : error.message}`);
-    }
+    // Simple HTML form to enter data
+    res.send(`
+        <form action="/sheets/add" method="post">
+            <label for="name">Name:</label>
+            <input type="text" name="name" required><br><br>
+            <label for="email">Email:</label>
+            <input type="email" name="email" required><br><br>
+            <button type="submit">Submit</button>
+        </form>
+    `);
 });
 
-// Add data to Google Sheets
+// Add data to Google Sheets (handles form submission)
 app.post('/sheets/add', async (req, res) => {
     if (!oAuth2Client.credentials) {
         return res.redirect('/');
     }
 
     const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
-    const { range, values } = req.body;
+    const { name, email } = req.body;
     const spreadsheetId = process.env.SPREADSHEET_ID;
 
-    if (!range || !values) {
-        return res.status(400).send('Invalid request body: range and values are required');
+    if (!name || !email) {
+        return res.status(400).send('Name and email are required');
     }
+
+    // Prepare the data to be added
+    const values = [[name, email]];
+    const range = 'Sheet1!A1:B1';  // You can adjust this range
 
     try {
         const response = await sheets.spreadsheets.values.append({
@@ -152,7 +147,7 @@ app.post('/sheets/add', async (req, res) => {
         });
 
         console.log('Data added successfully:', response.data);
-        res.json(response.data);
+        res.send('Data added successfully!');
     } catch (error) {
         console.error('Error adding data to Google Sheets:', error.response ? error.response.data : error.message);
         res.status(500).send(`Error adding data to Google Sheets: ${error.response ? error.response.data : error.message}`);

@@ -14,5 +14,8 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.2.12"
   }
 }
