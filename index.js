@@ -27,17 +27,7 @@ try {
     process.exit(1);
 }
 
-const { installed } = credentials;
-if (!installed) {
-    console.error('Invalid credentials format: Missing "installed" object');
-    process.exit(1);
-}
-
-const { client_secret, client_id, redirect_uris } = installed;
-if (!client_secret || !client_id || !redirect_uris) {
-    console.error('Invalid credentials format: Missing required fields');
-    process.exit(1);
-}
+const { client_secret, client_id, redirect_uris } = credentials.installed;
 
 const oAuth2Client = new google.auth.OAuth2(
     client_id,
@@ -47,7 +37,7 @@ const oAuth2Client = new google.auth.OAuth2(
 
 // Session middleware
 app.use(session({
-    secret: 'your-session-secret', 
+    secret: 'your-session-secret',
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false } 
@@ -55,11 +45,33 @@ app.use(session({
 
 app.use(express.json());
 
+// Save tokens to a file
+const TOKEN_PATH = path.join(__dirname, 'token.json');
+
+// Function to load saved tokens from a file
+function loadSavedTokens() {
+    if (fs.existsSync(TOKEN_PATH)) {
+        const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH));
+        oAuth2Client.setCredentials(tokens);
+        console.log('Tokens loaded from file');
+    }
+}
+
+// Function to save tokens to a file
+function saveTokens(tokens) {
+    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
+    console.log('Tokens saved to file');
+}
+
+// Load saved tokens when the server starts
+loadSavedTokens();
+
 // Routes
 app.get('/', (req, res) => {
     res.send('<a href="/auth">Authorize with Google</a>');
 });
 
+// Google OAuth authorization route
 app.get('/auth', (req, res) => {
     const url = oAuth2Client.generateAuthUrl({
         access_type: 'offline',
@@ -68,6 +80,7 @@ app.get('/auth', (req, res) => {
     res.redirect(url);
 });
 
+// OAuth2 callback route
 app.get('/oauth2callback', async (req, res) => {
     const code = req.query.code;
     if (!code) {
@@ -78,6 +91,7 @@ app.get('/oauth2callback', async (req, res) => {
         const { tokens } = await oAuth2Client.getToken(code);
         oAuth2Client.setCredentials(tokens);
         req.session.tokens = tokens;
+        saveTokens(tokens);  // Save tokens to a file for reuse
         res.send('Authentication successful! You can now access Google Sheets.');
     } catch (error) {
         console.error('Error exchanging code for tokens:', error.response ? error.response.data : error.message);
@@ -85,12 +99,11 @@ app.get('/oauth2callback', async (req, res) => {
     }
 });
 
+// View data from Google Sheets
 app.get('/sheets', async (req, res) => {
-    if (!req.session.tokens) {
+    if (!oAuth2Client.credentials) {
         return res.redirect('/');
     }
-
-    oAuth2Client.setCredentials(req.session.tokens);
 
     const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
     const spreadsheetId = process.env.SPREADSHEET_ID;
@@ -114,12 +127,11 @@ app.get('/sheets', async (req, res) => {
     }
 });
 
+// Add data to Google Sheets
 app.post('/sheets/add', async (req, res) => {
-    if (!req.session.tokens) {
+    if (!oAuth2Client.credentials) {
         return res.redirect('/');
     }
-
-    oAuth2Client.setCredentials(req.session.tokens);
 
     const sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
     const { range, values } = req.body;
@@ -129,13 +141,11 @@ app.post('/sheets/add', async (req, res) => {
         return res.status(400).send('Invalid request body: range and values are required');
     }
 
-    console.log('Adding data to sheet:', { range, values }); // Debugging step
-
     try {
         const response = await sheets.spreadsheets.values.append({
             spreadsheetId: spreadsheetId,
             range: range,
-            valueInputOption: 'RAW', 
+            valueInputOption: 'RAW',
             requestBody: {
                 values: values,
             },
@@ -145,7 +155,7 @@ app.post('/sheets/add', async (req, res) => {
         res.json(response.data);
     } catch (error) {
         console.error('Error adding data to Google Sheets:', error.response ? error.response.data : error.message);
-        res.status(500).send('Error adding data to Google Sheets');
+        res.status(500).send(`Error adding data to Google Sheets: ${error.response ? error.response.data : error.message}`);
     }
 });
 
