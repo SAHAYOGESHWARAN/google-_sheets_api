@@ -10,7 +10,7 @@ const mongoose = require('mongoose');
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = 5000;
 
 // MongoDB connection setup
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
